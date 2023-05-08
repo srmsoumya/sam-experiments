@@ -1,0 +1,4 @@
+.ipynb_checkpoints/
+model-weights/
+.vscode/
+inference/
