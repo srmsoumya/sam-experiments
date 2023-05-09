@@ -21,13 +21,18 @@ if torch.cuda.is_available():
     device = "cuda"
 else:
     device = "cpu"
-checkpoint = "sam_vit_b_01ec64.pth"
-model_type = "vit_b"
-sam = sam_model_registry[model_type](checkpoint=checkpoint)
+
+# pass in the model checkpoint and model type
+SAM_CHECKPOINT = "model-weights/sam_vit_b_01ec64.pth"
+MODEL_TYPE = "vit_b"
+
+
+sam = sam_model_registry[MODEL_TYPE](checkpoint=SAM_CHECKPOINT)
 predictor = SamPredictor(sam)
 
 if "saved_masks" not in st.session_state:
     st.session_state.saved_masks = []
+
 
 def show_mask(mask, ax, color=None):
     if color is None:
@@ -37,31 +42,52 @@ def show_mask(mask, ax, color=None):
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
-    
+
+
 def show_points(coords, labels, ax, marker_size=30):
-    pos_points = coords[labels==1]
-    neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='.', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='.', s=marker_size, edgecolor='white', linewidth=1.25)   
-    
+    pos_points = coords[labels == 1]
+    neg_points = coords[labels == 0]
+    ax.scatter(
+        pos_points[:, 0],
+        pos_points[:, 1],
+        color="green",
+        marker=".",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
+    ax.scatter(
+        neg_points[:, 0],
+        neg_points[:, 1],
+        color="red",
+        marker=".",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
+
+
 def show_box(box, ax):
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))
+    ax.add_patch(
+        plt.Rectangle((x0, y0), w, h, edgecolor="green", facecolor=(0, 0, 0, 0), lw=2)
+    )
 
 
 def string_to_color(text: str) -> tuple:
     """Convert a string to a color using its hash."""
     # Generate a 32-bit hash of the input text
-    hash_value = int(hashlib.md5(text.encode('utf-8')).hexdigest()[:8], 16)
+    hash_value = int(hashlib.md5(text.encode("utf-8")).hexdigest()[:8], 16)
 
     # Convert the hash value to RGB values
-    red = ((hash_value >> 16) & 0xff) / 255
-    green = ((hash_value >> 8) & 0xff) / 255
-    blue = (hash_value & 0xff) / 255
+    red = ((hash_value >> 16) & 0xFF) / 255
+    green = ((hash_value >> 8) & 0xFF) / 255
+    blue = (hash_value & 0xFF) / 255
     opacity = 0.7
 
     return red, green, blue, opacity
+
 
 def string_to_css_color(text: str) -> str:
     """Convert a string to a CSS color using its hash."""
@@ -71,6 +97,7 @@ def string_to_css_color(text: str) -> str:
     css_color = f"rgba({red*255}, {green*255}, {blue*255}, {opacity})"
 
     return css_color
+
 
 st.set_page_config(page_title="Label images with Segment Anything")
 
@@ -98,25 +125,23 @@ prompt_tools = {"include dot": "green", "exclude dot": "red"}
 legend_str = ""
 for label, color in prompt_tools.items():
     legend_str += f"<span style='color:{color};'>\u25CF</span> {label}<br>"
-drawing_mode = st.sidebar.selectbox(
-    "Selected promt tool:", prompt_tools.keys()
-)
+drawing_mode = st.sidebar.selectbox("Selected promt tool:", prompt_tools.keys())
 # Display the legend in the sidebar using st.sidebar.markdown()
 st.sidebar.markdown(f"Prompt color codes:\n\n{legend_str}", unsafe_allow_html=True)
 
 # stroke_width = st.sidebar.slider("Stroke width: ", 1, 25, 3)
-if drawing_mode == 'include dot':
+if drawing_mode == "include dot":
     stroke_color = "green"
-elif drawing_mode == 'exclude dot':
+elif drawing_mode == "exclude dot":
     stroke_color = "red"
 
 realtime_update = st.sidebar.checkbox("Update in realtime", True)
 
-    
+
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     report_image_width = 500
-    report_image_height = (report_image_width/image.width)*image.height
+    report_image_height = (report_image_width / image.width) * image.height
 
     # Create a canvas component
     canvas_slot = st.empty()
@@ -136,7 +161,6 @@ if uploaded_file is not None:
             key="canvas",
         )
 
-
     accepted_masks = st.session_state.saved_masks
     if accepted_masks:
         st.header("Preview of accepted masks")
@@ -151,10 +175,14 @@ if uploaded_file is not None:
                 patches.append(mpatches.Patch(color=color, label=label))
                 labels.add(label)
         ax.set_title(f"Preview of accepted masks", fontsize=10)
-        ax.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-        ax.axis('off')
+        ax.legend(
+            handles=patches,
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            borderaxespad=0.0,
+        )
+        ax.axis("off")
         st.pyplot(fig)
-
 
     input_points = []
     input_labels = []
@@ -167,7 +195,12 @@ if uploaded_file is not None:
     if objs:
         for obj in objs:
             if obj["type"] == "circle":
-                input_points.append((obj["left"]*(image.width/report_image_width), obj["top"]*(image.height/report_image_height)))
+                input_points.append(
+                    (
+                        obj["left"] * (image.width / report_image_width),
+                        obj["top"] * (image.height / report_image_height),
+                    )
+                )
                 if obj["stroke"] == "green":
                     input_labels.append(1)
                 else:
@@ -192,10 +225,10 @@ if uploaded_file is not None:
                     fig, ax = plt.subplots(figsize=(5, 5))
                     # Create the plot
                     ax.imshow(image)
-                    show_mask(mask, ax, color=(30/255, 144/255, 255/255, 0.6))
+                    show_mask(mask, ax, color=(30 / 255, 144 / 255, 255 / 255, 0.6))
                     show_points(input_points, input_labels, ax)
                     ax.set_title(f"Mask {i+1}, Score: {score:.3f}", fontsize=10)
-                    ax.axis('off')
+                    ax.axis("off")
 
                     # Display the plot in Streamlit using st.pyplot()
                     st.pyplot(fig)
